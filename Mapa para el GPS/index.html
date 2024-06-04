@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control del carrito via GPS</title>
+    <link rel="icon" type="image/x-icon" href="6615039.png">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+    integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY="
+    crossorigin=""/>
+     <!-- Make sure you put this AFTER Leaflet's CSS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo="
+    crossorigin=""></script>
+
+</head>
+<body>
+    <div><h1 class="title">Bienvenidos al control del carrito desde un mapa</h1></div>
+    <div id="map"></div>
+    <div id="buttons"><button type="button" class="btn btn-outline-danger" class="buttons" id="stop">Alto total</button>
+        
+    </div>
+</body>
+<link rel="stylesheet" href="style.css">
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<script src="index.js">
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.2.8/mqtt.min.js"></script>
+<script>
+    // Connect to the MQTT broker using WebSocket
+    const client = mqtt.connect('wss://test.mosquitto.org:8081/mqtt');
+
+    // When the connection is established
+    client.on('connect', function () {
+        console.log('Connected to MQTT broker');
+
+        // Subscribe to a topic
+        client.subscribe('esligodfv', function (err) {
+            if (!err) {
+                console.log('Subscribed to topic');
+            } else {
+                console.log('Error subscribing to topic:', err);
+            }
+        });
+
+        // Publish a message to a topic
+    });
+
+    // When a message is received
+    client.on('message', function (topic, message) {
+        // message is a Buffer
+        console.log('Received message:', message.toString());
+        console.log('From topic:', topic);
+    });
+
+    // Handle connection errors
+    client.on('error', function (error) {
+        console.log('Connection error:', error);
+    });
+
+    // Handle connection close
+    client.on('close', function () {
+        console.log('Connection closed');
+    });
+
+    document.getElementById('stop').addEventListener('click', () => (
+        client.publish('esligodfv', JSON.stringify({ action: 'stop' }))
+    ));
+  
+
+</script>
+</html>

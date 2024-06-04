@@ -1,0 +1,407 @@
+<!DOCTYPE HTML>
+    <html>
+    <head>
+      <title>Control del Carrito</title>
+      <meta charset="utf-8">
+      <meta name="description" content="Example page of use pure Javascript JoyStick">
+      <meta name="author" content="Fvv">
+      <script src="https://cdnjs.cloudflare.com/ajax/libs/mqtt/4.2.8/mqtt.min.js"></script>
+      <script>    // Connect to the MQTT broker using WebSocket
+        const client = mqtt.connect('wss://test.mosquitto.org:8081/mqtt');
+    
+        // When the connection is established
+        client.on('connect', function () {
+            console.log('Connected to MQTT broker');
+    
+            // Subscribe to a topic
+            client.subscribe('esligodfv', function (err) {
+                if (!err) {
+                    console.log('Subscribed to topic');
+                } else {
+                    console.log('Error subscribing to topic:', err);
+                }
+            });
+    
+            // Publish a message to a topic
+        });
+    
+        // When a message is received
+        client.on('message', function (topic, message) {
+            // message is a Buffer
+            console.log('Received message:', message.toString());
+            console.log('From topic:', topic);
+        });
+    
+        // Handle connection errors
+        client.on('error', function (error) {
+            console.log('Connection error:', error);
+        });
+    
+        // Handle connection close
+        client.on('close', function () {
+            console.log('Connection closed');
+        });
+    </script>
+      <style>
+        body {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          height: 100vh;
+          margin: 0;
+          font-family: Arial, sans-serif;
+          background: linear-gradient(135deg, #f6d365 0%, #fda085 100%);
+        }
+        h1 {
+          margin-bottom: 20px;
+          color: #fff;
+          text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.4);
+        }
+        .joystick {
+          display: grid;
+          grid-template-columns: repeat(3, 100px);
+          grid-template-rows: repeat(3, 100px);
+          gap: 20px;
+        }
+        .joystick div {
+          width: 100px;
+          height: 100px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 24px;
+          background-color: rgba(255, 255, 255, 0.8);
+          border: 2px solid #fff;
+          border-radius: 50%;
+          cursor: pointer;
+          transition: background-color 0.3s, transform 0.3s;
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .joystick div:hover {
+          background-color: rgba(255, 255, 255, 1);
+          transform: scale(1.1);
+        }
+        #status {
+          margin-top: 20px;
+          font-size: 20px;
+          color: #fff;
+          text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        #joy1Div {
+          width:200px;
+          height:200px;
+          margin:50px
+        }
+        #joystick {
+          border: .5px solid #FF0000;
+        }
+      </style>
+    </head>
+    <body>
+      <h1>Control del Carrito</h1>
+      <div id="joy1Div"></div>
+      <br/>
+      X Position: <input id="joy1PosizioneX" type="text" readonly>
+      <br/>
+      Y Position: <input id="joy1PosizioneY" type="text" readonly>
+      <br/>
+      Direction: <input id="joy1Direzione" type="text" readonly>
+      <br/>
+      X: <input id="joy1X" type="text" readonly>
+      <br/>
+      Y: <input id="joy1Y" type="text" readonly>
+      <br/>
+      <div class="control-buttons">
+        <button onclick="client.publish('esligodfv', JSON.stringify({ action: 'pitar' }))">Encender Buzzer</button>
+        <button onclick="client.publish('esligodfv', JSON.stringify({ action: 'preventivas' }))">Encender preventivas</button>
+        <button onclick="client.publish('esligodfv', JSON.stringify({ action: 'preventivasoff' }))">Apagar preventivas</button>
+        <br/>
+        <button onclick="client.publish('esligodfv', JSON.stringify({ action: 'dirizq' }))">Encender direccional izquierda</button>
+        <button onclick="client.publish('esligodfv', JSON.stringify({ action: 'dirder' }))">Encender direccional derecha</button>
+      </div>
+      <script>
+        let StickStatus = {
+          xPosition: 0,
+          yPosition: 0,
+          x: 0,
+          y: 0,
+          cardinalDirection: "C"
+        };
+        var JoyStick = (function(container, parameters, callback) {
+          parameters = parameters || {};
+          var title = (typeof parameters.title === "undefined" ? "joystick" : parameters.title),
+              width = (typeof parameters.width === "undefined" ? 0 : parameters.width),
+              height = (typeof parameters.height === "undefined" ? 0 : parameters.height),
+              internalFillColor = (typeof parameters.internalFillColor === "undefined" ? "#572364" : parameters.internalFillColor),
+              internalLineWidth = (typeof parameters.internalLineWidth === "undefined" ? 2 : parameters.internalLineWidth),
+              internalStrokeColor = (typeof parameters.internalStrokeColor === "undefined" ? "#003300" : parameters.internalStrokeColor),
+              externalLineWidth = (typeof parameters.externalLineWidth === "undefined" ? 2 : parameters.externalLineWidth),
+              externalStrokeColor = (typeof parameters.externalStrokeColor === "undefined" ? "#572361" : parameters.externalStrokeColor),
+              autoReturnToCenter = (typeof parameters.autoReturnToCenter === "undefined" ? true : parameters.autoReturnToCenter);
+          callback = callback || function(StickStatus) {};
+          var objContainer = document.getElementById(container);
+          objContainer.style.touchAction = "none";
+          var canvas = document.createElement("canvas");
+          canvas.id = title;
+          if(width === 0) { width = objContainer.clientWidth; }
+          if(height === 0) { height = objContainer.clientHeight; }
+          canvas.width = width;
+          canvas.height = height;
+          objContainer.appendChild(canvas);
+          var context = canvas.getContext("2d");
+          var pressed = 0;
+          var circumference = 2 * Math.PI;
+          var internalRadius = (canvas.width - ((canvas.width/2) + 10)) / 2;
+          var maxMoveStick = internalRadius + 5;
+          var externalRadius = internalRadius + 30;
+          var centerX = canvas.width / 2;
+          var centerY = canvas.height / 2;
+          var directionHorizontalLimitPos = canvas.width / 10;
+          var directionHorizontalLimitNeg = directionHorizontalLimitPos * -1;
+          var directionVerticalLimitPos = canvas.height / 10;
+          var directionVerticalLimitNeg = directionVerticalLimitPos * -1;
+          var movedX = centerX;
+          var movedY = centerY;
+          if("ontouchstart" in document.documentElement) {
+            canvas.addEventListener("touchstart", onTouchStart, false);
+            document.addEventListener("touchmove", onTouchMove, false);
+            document.addEventListener("touchend", onTouchEnd, false);
+          } else {
+            canvas.addEventListener("mousedown", onMouseDown, false);
+            document.addEventListener("mousemove", onMouseMove, false);
+            document.addEventListener("mouseup", onMouseUp, false);
+          }
+          drawExternal();
+          drawInternal();
+          function drawExternal() {
+            context.beginPath();
+            context.arc(centerX, centerY, externalRadius, 0, circumference, false);
+            context.lineWidth = externalLineWidth;
+            context.strokeStyle = externalStrokeColor;
+            context.stroke();
+          }
+          function drawInternal() {
+            context.beginPath();
+            if(movedX < internalRadius) { movedX = maxMoveStick; }
+            if((movedX + internalRadius) > canvas.width) { movedX = canvas.width - maxMoveStick; }
+            if(movedY < internalRadius) { movedY = maxMoveStick; }
+            if((movedY + internalRadius) > canvas.height) { movedY = canvas.height - maxMoveStick; }
+            context.arc(movedX, movedY, internalRadius, 0, circumference, false);
+            var grd = context.createRadialGradient(centerX, centerY, 5, centerX, centerY, 200);
+            grd.addColorStop(0, internalFillColor);
+            grd.addColorStop(1, internalStrokeColor);
+            context.fillStyle = grd;
+            context.fill();
+            context.lineWidth = internalLineWidth;
+            context.strokeStyle = internalStrokeColor;
+            context.stroke();
+          }
+          let touchId = null;
+          function onTouchStart(event) {
+            pressed = 1;
+            touchId = event.targetTouches[0].identifier;
+          }
+          function onTouchMove(event) {
+            if(pressed === 1 && event.targetTouches[0].target === canvas) {
+              movedX = event.targetTouches[0].pageX;
+              movedY = event.targetTouches[0].pageY;
+              if(canvas.offsetParent.tagName.toUpperCase() === "BODY") {
+                movedX -= canvas.offsetLeft;
+                movedY -= canvas.offsetTop;
+              } else {
+                movedX -= canvas.offsetParent.offsetLeft;
+                movedY -= canvas.offsetParent.offsetTop;
+              }
+              context.clearRect(0, 0, canvas.width, canvas.height);
+              drawExternal();
+              drawInternal();
+              StickStatus.xPosition = movedX;
+              StickStatus.yPosition = movedY;
+              StickStatus.x = (100 * ((movedX - centerX) / maxMoveStick)).toFixed();
+              StickStatus.y = ((100 * ((movedY - centerY) / maxMoveStick)) * -1).toFixed();
+              StickStatus.cardinalDirection = getCardinalDirection();
+              callback(StickStatus);
+            }
+          }
+          function onTouchEnd(event) {
+            if (event.changedTouches[0].identifier === touchId) {
+              pressed = 0;
+              if(autoReturnToCenter) {
+                movedX = centerX;
+                movedY = centerY;
+              }
+              context.clearRect(0, 0, canvas.width, canvas.height);
+              drawExternal();
+              drawInternal();
+              StickStatus.xPosition = movedX;
+              StickStatus.yPosition = movedY;
+              StickStatus.x = (100 * ((movedX - centerX) / maxMoveStick)).toFixed();
+              StickStatus.y = ((100 * ((movedY - centerY) / maxMoveStick)) * -1).toFixed();
+              StickStatus.cardinalDirection = getCardinalDirection();
+              callback(StickStatus);
+            }
+          }
+          function onMouseDown(event) {
+            pressed = 1;
+          }
+          function onMouseMove(event) {
+            if(pressed === 1) {
+              movedX = event.pageX;
+              movedY = event.pageY;
+              if(canvas.offsetParent.tagName.toUpperCase() === "BODY") {
+                movedX -= canvas.offsetLeft;
+                movedY -= canvas.offsetTop;
+              } else {
+                movedX -= canvas.offsetParent.offsetLeft;
+                movedY -= canvas.offsetParent.offsetTop;
+              }
+              context.clearRect(0, 0, canvas.width, canvas.height);
+              drawExternal();
+              drawInternal();
+              StickStatus.xPosition = movedX;
+              StickStatus.yPosition = movedY;
+              StickStatus.x = (100 * ((movedX - centerX) / maxMoveStick)).toFixed();
+              StickStatus.y = ((100 * ((movedY - centerY) / maxMoveStick)) * -1).toFixed();
+              StickStatus.cardinalDirection = getCardinalDirection();
+              callback(StickStatus);
+            }
+          }
+          function onMouseUp(event) {
+            pressed = 0;
+            if(autoReturnToCenter) {
+              movedX = centerX;
+              movedY = centerY;
+            }
+            context.clearRect(0, 0, canvas.width, canvas.height);
+            drawExternal();
+            drawInternal();
+            StickStatus.xPosition = movedX;
+            StickStatus.yPosition = movedY;
+            StickStatus.x = (100 * ((movedX - centerX) / maxMoveStick)).toFixed();
+            StickStatus.y = ((100 * ((movedY - centerX) / maxMoveStick)) * -1).toFixed();
+            StickStatus.cardinalDirection = getCardinalDirection();
+            callback(StickStatus);
+          }
+          function getCardinalDirection() {
+            var result = "";
+            var orizontal = movedX - centerX;
+            var vertical = movedY - centerY;
+            if(vertical >= directionVerticalLimitNeg && vertical <= directionVerticalLimitPos) {
+              result = "C";
+            }
+            if(vertical < directionVerticalLimitNeg) {
+              result = "N";
+            }
+            if(vertical > directionVerticalLimitPos) {
+              result = "S";
+            }
+            if(orizontal < directionHorizontalLimitNeg) {
+              if(result === "C") {
+                result = "W";
+              } else {
+                result += "W";
+              }
+            }
+            if(orizontal > directionHorizontalLimitPos) {
+              if(result === "C") {
+                result = "E";
+              } else {
+                result += "E";
+              }
+            }
+            return result;
+          }
+          return {
+            GetWidth: function() { return canvas.width; },
+            GetHeight: function() { return canvas.height; },
+            GetPosX: function() { return movedX; },
+            GetPosY: function() { return movedY; },
+            GetX: function() { return StickStatus.x; },
+            GetY: function() { return StickStatus.y; },
+            GetDir: function() { return StickStatus.cardinalDirection; }
+          };
+        });
+        var joy1IinputPosX = document.getElementById("joy1PosizioneX");
+        var joy1InputPosY = document.getElementById("joy1PosizioneY");
+        var joy1Direzione = document.getElementById("joy1Direzione");
+        var joy1X = document.getElementById("joy1X");
+        var joy1Y = document.getElementById("joy1Y");
+        var Joy1 = new JoyStick('joy1Div', {}, function(stickData) {
+          joy1IinputPosX.value = stickData.xPosition;
+          joy1InputPosY.value = stickData.yPosition;
+          joy1Direzione.value = stickData.cardinalDirection;
+          joy1X.value = stickData.x;
+          joy1Y.value = stickData.y;
+          switch (stickData.cardinalDirection) {
+            case 'N':
+              moverNorte();
+              break;
+            case 'S':
+              moverSur();
+              break;
+            case 'E':
+              moverEste();
+              break;
+            case 'W':
+              moverOeste();
+              break;
+            case 'NE':
+              moverNE();
+              break;
+            case 'SE':
+              moverSE();
+              break;
+            case 'NW':
+              moverNW();
+              break;
+            case 'SW':
+              moverSW();
+              break;
+            case 'C':
+              parar();
+              break;
+            default:
+              parar();
+              break;
+          }
+        });
+        function moverNorte() {
+          console.log("Mover al norte");
+          client.publish('esligodfv', JSON.stringify({ action: 'N' }))        
+        }
+        function moverSur() {
+          console.log("Mover al sur");
+          client.publish('esligodfv', JSON.stringify({ action: 'S' }))   
+        }
+        function moverEste() {
+          console.log("Mover al este");
+          client.publish('esligodfv', JSON.stringify({ action: 'E' }))   
+        }
+        function moverOeste() {
+          console.log("Mover al oeste");
+          client.publish('esligodfv', JSON.stringify({ action: 'O' }))   
+        }
+        function moverNW() {
+          console.log("Mover al NorOeste");
+          client.publish('esligodfv', JSON.stringify({ action: 'NO' }))   
+        }
+        function moverNE() {
+          console.log("Mover al NorEste");
+          client.publish('esligodfv', JSON.stringify({ action: 'NE' }))   
+        }
+        function moverSW() {
+          console.log("Mover al surOeste");
+          client.publish('esligodfv', JSON.stringify({ action: 'SO' }))   
+        }
+        function moverSE() {
+          console.log("Mover al surEste");
+          client.publish('esligodfv', JSON.stringify({ action: 'SE' }))   
+        }
+        function parar() {
+          console.log("Parar");
+          client.publish('esligodfv', JSON.stringify({ action: 'stop' }))  
+        }
+      </script>
+    </body>
+    </html>
